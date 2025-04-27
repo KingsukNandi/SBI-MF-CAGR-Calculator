@@ -14,6 +14,8 @@ const Sheet = () => {
   const [search, setSearch] = useState("");
   const [sortConfig, setSortConfig] = useState({ key: "", direction: "" });
 
+  const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:3000" : "";
+
   useEffect(() => {
     const fetchNAVs = async () => {
       setLoading(true);
@@ -25,7 +27,7 @@ const Sheet = () => {
 
       try {
         const response = await axios.get(
-          `http://localhost:3000/api/nav?schemes=${schemeNames}`
+          `${BASE_URL}/api/nav?schemes=${schemeNames}`
         );
         const navData = response.data.data;
         console.log(navData);
