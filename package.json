@@ -1,0 +1,33 @@
+{
+  "name": "sbi_mf_calculator",
+  "version": "1.0.0",
+  "description": "",
+  "main": "backend/server.js",
+  "scripts": {
+    "dev": "nodemon backend/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@arcjet/node": "^1.0.0-beta.6",
+    "axios": "^1.9.0",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "file-saver": "^2.0.5",
+    "fs": "^0.0.1-security",
+    "helmet": "^8.1.0",
+    "json-2-csv": "^5.5.9",
+    "morgan": "^1.10.0",
+    "node-fetch": "^3.3.2",
+    "papaparse": "^5.5.2",
+    "react-router-dom": "^7.5.2"
+  },
+  "devDependencies": {
+    "daisyui": "^5.0.28",
+    "nodemon": "^3.1.10"
+  }
+}
