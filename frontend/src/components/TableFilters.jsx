@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { calculateYears } from "../utils/calculateUtils";
 
 const TableFilters = ({ data, onFilterChange }) => {
   const [filters, setFilters] = useState({});

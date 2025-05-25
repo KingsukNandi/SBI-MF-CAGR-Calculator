@@ -4,6 +4,11 @@ import axios from "axios";
 import { parse } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
 import TableFilters from "./TableFilters";
+import {
+  calculateUnits,
+  calculateCAGR,
+  calculateYears,
+} from "../utils/calculateUtils";
 
 const Sheet = () => {
   const location = useLocation();
@@ -14,7 +19,8 @@ const Sheet = () => {
   const [search, setSearch] = useState("");
   const [sortConfig, setSortConfig] = useState({ key: "", direction: "" });
 
-  const BASE_URL = import.meta.env.MODE === "development" ? "http://localhost:3000" : "";
+  const BASE_URL =
+    import.meta.env.MODE === "development" ? "http://localhost:3000" : "";
 
   useEffect(() => {
     const fetchNAVs = async () => {
@@ -44,10 +50,17 @@ const Sheet = () => {
               ? ((endNAV / startNAV) ** (1 / years) - 1) * 100
               : "";
 
-          const totalGain = (row.Amount * CAGR) / 100;
+          //endNAV && startNAV && years > 0
+          //  ? ((endNAV - startNAV) / startNAV) * years * 100
+          //  : "";
+
+          const totalGain = (row.Amount * CAGR * years) / 100;
           let returnAmount =
             (parseFloat(totalGain?.toFixed(2)) || 0) +
             (parseFloat(row?.Amount) || 0);
+
+          const units = startNAV > 0 ? (row.Amount / startNAV).toFixed(4) : "";
+          row.Units = units;
 
           return {
             ...row,
@@ -65,6 +78,7 @@ const Sheet = () => {
         console.log(err);
       } finally {
         setLoading(false);
+        await handleNavInputChange();
       }
     };
 
@@ -162,7 +176,7 @@ const Sheet = () => {
         parsedDate = parse(dateString, "MM/dd/yyyy", new Date());
       }
       const currentDate = new Date();
-      return (currentDate - parsedDate) / (1000 * 60 * 60 * 24 * 365);
+      return (currentDate - parsedDate + 1) / (1000 * 60 * 60 * 24 * 365);
     } catch (error) {
       console.error("Date parsing error:", error);
       return 0;
@@ -173,6 +187,8 @@ const Sheet = () => {
     const updatedData = [...filteredData];
 
     if (key === "Date") {
+      console.log(value);
+
       const [year, month, day] = value.split("-");
       value = `${month}/${day}/${year}`;
     }
@@ -184,14 +200,10 @@ const Sheet = () => {
     const amount = parseFloat(updatedData[index].Amount);
     const years = calculateYears(updatedData[index].Date);
 
-    const CAGR =
-      endNAV && startNAV && years > 0
-        ? ((endNAV / startNAV) ** (1 / years) - 1) * 100
-        : "";
+    updatedData[index].Units = calculateUnits(amount, startNAV);
+    updatedData[index].CAGR = calculateCAGR(startNAV, endNAV, years);
 
-    updatedData[index].CAGR = CAGR ? CAGR.toFixed(4) : "";
-
-    const returnAmount = amount * (1 + CAGR / 100);
+    const returnAmount = amount * (1 + updatedData[index].CAGR / 100);
     const totalGain = returnAmount - amount;
 
     updatedData[index]["Return Amount"] = returnAmount
@@ -304,7 +316,7 @@ const Sheet = () => {
                               ? handleDateSort(key)
                               : handleSort(key)
                           }
-                          className="cursor-pointer hover:bg-[#0095c7]"
+                          className="cursor-pointer hover:bg-[#0095c7] text-center"
                         >
                           {key === "CurrentNAV" ? "Current NAV" : key}{" "}
                           {sortConfig.key === key
@@ -345,7 +357,7 @@ const Sheet = () => {
                       return (
                         <td
                           key={idx}
-                          className={`
+                          className={`text-center px-0
                         ${isNegative ? "text-red-500 font-medium" : ""}
                         ${isPositive ? "text-green-600 font-medium" : ""}
                       `}
@@ -356,11 +368,16 @@ const Sheet = () => {
                           key === "Date" ? (
                             <input
                               type={key === "Date" ? "date" : "number"}
-                              className="input input-ghost w-40 focus:outline-[#00b5ef]"
+                              className={`input ${
+                                key === "Date" ? "w-[130px]" : "w-[80px]"
+                              } p-0 input-ghost focus:outline-[#00b5ef] text-center`}
                               placeholder="Enter NAV"
                               value={
                                 key === "Date"
-                                  ? new Date(row[key])
+                                  ? new Date(
+                                      new Date(row[key]).getTime() +
+                                        24 * 60 * 60 * 1000
+                                    )
                                       .toISOString()
                                       .slice(0, 10)
                                   : row[key] || ""

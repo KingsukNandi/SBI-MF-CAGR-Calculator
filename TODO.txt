@@ -1,4 +1,7 @@
 - ratelimiting and security
 - frontend
     - date manipulation fetches that day nav
+    - expense ratio included
     - download csv
+    - end date manipulation
+    - scheme type multi select filter (purchase + switch in together)
