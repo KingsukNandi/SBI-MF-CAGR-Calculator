@@ -1,80 +1,76 @@
-import React, { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { calculateYears } from "../utils/calculateUtils";
+import { useMemo } from "react";
 
-const TableFilters = ({ data, onFilterChange }) => {
-  const [filters, setFilters] = useState({});
-  const [columns, setColumns] = useState([]);
+// Columns worth filtering on: categorical, low-cardinality, user-meaningful.
+const FILTERABLE = [
+  { key: "schemeName", label: "Scheme" },
+  { key: "type", label: "Type" },
+  { key: "folioNo", label: "Folio No" },
+];
 
-  useEffect(() => {
-    if (data && data.length > 0) {
-      const filterableColumns = Object.keys(data[0]).filter(
-        (key) =>
-          key !== "" &&
-          key !== "CurrentNAV" &&
-          key !== "CAGR" &&
-          key !== "Return Amount" &&
-          key !== "Total Gain"
-      );
-      setColumns(filterableColumns);
-
-      const initialFilters = {};
-      filterableColumns.forEach((column) => {
-        initialFilters[column] = "";
-      });
-      setFilters(initialFilters);
+/**
+ * Filter state is owned by Sheet and derived here -- the previous version kept
+ * its own copy in useState and reset it inside an effect on every `data`
+ * change, so the dropdowns cleared themselves mid-edit.
+ */
+const TableFilters = ({ rows, filters, onFilterChange }) => {
+  const options = useMemo(() => {
+    const map = {};
+    for (const { key } of FILTERABLE) {
+      const values = new Set();
+      for (const row of rows) {
+        const value = String(row[key] ?? "").trim();
+        if (value) values.add(value);
+      }
+      map[key] = [...values].sort((a, b) => a.localeCompare(b));
     }
-  }, [data]);
+    return map;
+  }, [rows]);
 
-  const handleFilterChange = (column, value) => {
-    const updatedFilters = { ...filters, [column]: value };
-    setFilters(updatedFilters);
-    onFilterChange(updatedFilters);
-  };
+  const handleChange = (key, value) =>
+    onFilterChange({ ...filters, [key]: value });
 
-  const getUniqueValues = (column) => {
-    const values = [...new Set(data.map((row) => row[column]))];
-    return values.filter((value) => value !== undefined && value !== "");
-  };
+  const activeCount = Object.values(filters).filter((v) => v !== "").length;
 
   return (
-    <motion.div
-      className="flex flex-wrap gap-4 mb-4"
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-    >
-      {columns.map((column) => {
-        if (
-          column === "FolioNo" ||
-          column === "SchemeName" ||
-          column === "Type"
-        )
-          return (
-            <motion.div
-              key={column}
-              className="flex flex-col"
-              whileHover={{ scale: 1.02 }}
+    <div className="flex flex-wrap items-end gap-4">
+      {FILTERABLE.map(({ key, label }) => {
+        // A filter with one option filters nothing.
+        if (options[key].length < 2) return null;
+        return (
+          <div key={key} className="flex flex-col">
+            <label
+              htmlFor={`filter-${key}`}
+              className="text-xs font-medium text-gray-600 mb-1"
             >
-              <label className="text-sm font-medium text-gray-700 mb-1">
-                {column}
-              </label>
-              <select
-                value={filters[column] || ""}
-                onChange={(e) => handleFilterChange(column, e.target.value)}
-                className="select select-bordered w-full max-w-xs border-[#00b5ef] focus:outline-[#00b5ef]"
-              >
-                <option value="">All</option>
-                {getUniqueValues(column).map((value) => (
-                  <option key={value} value={value}>
-                    {value}
-                  </option>
-                ))}
-              </select>
-            </motion.div>
-          );
+              {label}
+            </label>
+            <select
+              id={`filter-${key}`}
+              value={filters[key] ?? ""}
+              onChange={(e) => handleChange(key, e.target.value)}
+              className="select select-bordered select-sm w-full max-w-xs border-[#00b5ef] focus:outline-[#00b5ef]"
+            >
+              <option value="">All ({options[key].length})</option>
+              {options[key].map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </div>
+        );
       })}
-    </motion.div>
+
+      {activeCount > 0 && (
+        <button
+          type="button"
+          onClick={() => onFilterChange({})}
+          className="btn btn-sm btn-ghost text-[#00b5ef]"
+        >
+          Clear {activeCount} filter{activeCount === 1 ? "" : "s"}
+        </button>
+      )}
+    </div>
   );
 };
 

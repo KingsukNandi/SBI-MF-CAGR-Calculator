@@ -1,122 +1,181 @@
-import React, { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import Papa from "papaparse";
 
+const REQUIRED = ["SchemeName", "Date", "NAV", "Amount"];
+const OPTIONAL = ["FolioNo", "Type"];
+const MAX_BYTES = 10 * 1024 * 1024;
+
+const normalise = (header) => header.trim().toLowerCase().replace(/[\s_]/g, "");
+
+// Excel-installed machines report .csv as application/vnd.ms-excel or "", so
+// the old `file.type === "text/csv"` check rejected perfectly valid files.
+const looksLikeCsv = (file) => /\.csv$/i.test(file.name);
+
 const Uploader = () => {
   const [file, setFile] = useState(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const inputRef = useRef(null);
   const navigate = useNavigate();
 
-  const containerVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5 },
-    },
-    exit: {
-      opacity: 0,
-      y: -20,
-      transition: { duration: 0.3 },
-    },
+  const accept = (candidate) => {
+    if (!candidate) return;
+    if (!looksLikeCsv(candidate)) {
+      setError("That file is not a .csv — export your statement as CSV first.");
+      setFile(null);
+      return;
+    }
+    if (candidate.size > MAX_BYTES) {
+      setError("That file is larger than 10 MB.");
+      setFile(null);
+      return;
+    }
+    setError("");
+    setFile(candidate);
   };
 
-  const handleFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type === "text/csv") {
-      setFile(file);
-      setError("");
-    } else {
-      setError("Please upload a CSV file");
-    }
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    accept(e.dataTransfer.files?.[0]);
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!file) {
-      setError("Please select a file");
+    if (!file || busy) {
+      if (!file) setError("Choose a CSV file first.");
       return;
     }
 
+    setBusy(true);
+    setError("");
+
     Papa.parse(file, {
+      header: true,
+      skipEmptyLines: "greedy",
+      transformHeader: (h) => h.trim(),
       complete: (results) => {
-        const headers = results.data[0];
-        const rows = results.data
-          .slice(1)
-          .filter((row) => row.length === headers.length);
+        setBusy(false);
 
-        const processedData = rows.map((row) => {
-          const obj = {};
-          headers.forEach((header, index) => {
-            obj[header] = row[index];
-          });
-          return obj;
-        });
+        const headers = results.meta.fields ?? [];
+        const present = new Set(headers.map(normalise));
+        const missing = REQUIRED.filter((r) => !present.has(normalise(r)));
 
-        navigate("/sheet", { state: { data: processedData } });
+        if (missing.length) {
+          setError(
+            `Missing column${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}. ` +
+              `Found: ${headers.join(", ") || "none"}.`
+          );
+          return;
+        }
+
+        // Drop rows that are entirely blank or have no scheme to look up.
+        const rows = results.data.filter((row) =>
+          Object.values(row).some((v) => String(v ?? "").trim() !== "")
+        );
+
+        if (!rows.length) {
+          setError("That file has headers but no data rows.");
+          return;
+        }
+
+        navigate("/sheet", { state: { data: rows } });
       },
-      header: false,
-      skipEmptyLines: true,
+      error: (err) => {
+        setBusy(false);
+        setError(`Could not read that file: ${err.message}`);
+      },
     });
   };
 
   return (
     <motion.div
-      className="min-h-screen flex items-center justify-center bg-white"
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
-      exit="exit"
+      className="min-h-screen flex items-center justify-center bg-white p-4"
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4 }}
     >
-      <div className="bg-white border border-gray-200 p-8 rounded-lg shadow-lg w-96">
-        <motion.h1
-          className="text-2xl font-bold mb-6 text-center text-[#00b5ef]"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          Upload CSV File
-        </motion.h1>
+      <div className="bg-white border border-gray-200 p-8 rounded-lg shadow-lg w-full max-w-md">
+        <h1 className="text-2xl font-bold mb-2 text-center text-[#00b5ef]">
+          Mutual fund returns
+        </h1>
+        <p className="text-sm text-gray-600 text-center mb-6">
+          Upload a CSV of your transactions. Nothing is stored — everything is
+          computed in your browser.
+        </p>
+
         <form onSubmit={handleSubmit} className="space-y-4">
-          <motion.div
-            className="flex flex-col items-center justify-center h-24 border-2 border-dashed border-[#00b5ef] rounded-lg hover:border-[#0095c7] transition-colors"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+            className={`flex flex-col items-center justify-center h-28 border-2 border-dashed rounded-lg transition-colors ${
+              dragging
+                ? "border-[#0095c7] bg-[#00b5ef]/5"
+                : "border-[#00b5ef] hover:border-[#0095c7]"
+            }`}
           >
             <input
+              ref={inputRef}
               type="file"
-              onChange={handleFileChange}
-              accept=".csv"
-              className="hidden"
+              onChange={(e) => accept(e.target.files?.[0])}
+              accept=".csv,text/csv"
+              className="sr-only"
               id="file-upload"
             />
             <label
               htmlFor="file-upload"
-              className="cursor-pointer text-[#00b5ef] hover:text-[#0095c7] transition-colors w-full h-full flex items-center justify-center"
+              className="cursor-pointer text-[#00b5ef] hover:text-[#0095c7] w-full h-full flex flex-col items-center justify-center gap-1 text-center px-4"
             >
-              <div>{file ? file.name : "Choose a CSV file"}</div>
+              <span className="font-medium">
+                {file ? file.name : "Choose a CSV file"}
+              </span>
+              <span className="text-xs text-gray-500">
+                {file
+                  ? `${(file.size / 1024).toFixed(0)} KB — click to change`
+                  : "or drag it here"}
+              </span>
             </label>
-          </motion.div>
+          </div>
+
           {error && (
-            <motion.p
-              className="text-red-500 text-center"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
+            <p role="alert" className="text-red-600 text-sm leading-relaxed">
               {error}
-            </motion.p>
+            </p>
           )}
-          <motion.button
+
+          <button
             type="submit"
-            className="w-full bg-[#00b5ef] text-white py-2 px-4 rounded-lg hover:bg-[#0095c7] transition-colors"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            disabled={!file}
+            className="w-full bg-[#00b5ef] text-white py-2 px-4 rounded-lg hover:bg-[#0095c7] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={!file || busy}
           >
-            Upload
-          </motion.button>
+            {busy ? "Reading…" : "Calculate returns"}
+          </button>
         </form>
+
+        <div className="mt-6 pt-4 border-t border-gray-100">
+          <p className="text-xs text-gray-500 leading-relaxed">
+            <strong className="text-gray-700">Required columns:</strong>{" "}
+            {REQUIRED.join(", ")}
+            <br />
+            <strong className="text-gray-700">Optional:</strong> {OPTIONAL.join(", ")}
+            <br />
+            <code className="text-[11px]">NAV</code> is the NAV you bought at;{" "}
+            <code className="text-[11px]">Amount</code> is what you invested.
+          </p>
+          <p className="text-xs text-gray-500 mt-2">
+            <a href="/sample.csv" download className="text-[#00b5ef] hover:underline">
+              Download a sample CSV
+            </a>{" "}
+            to see the expected shape.
+          </p>
+        </div>
       </div>
     </motion.div>
   );

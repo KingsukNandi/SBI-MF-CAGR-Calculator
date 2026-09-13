@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import { AnimatePresence } from "framer-motion";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Sheet from "./components/Sheet";
 import Uploader from "./components/Uploader";
 
@@ -7,12 +7,12 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-white">
-        <AnimatePresence mode="wait">
+        <ErrorBoundary>
           <Routes>
             <Route path="/" element={<Uploader />} />
             <Route path="/sheet" element={<Sheet />} />
           </Routes>
-        </AnimatePresence>
+        </ErrorBoundary>
       </div>
     </Router>
   );
