@@ -20,6 +20,8 @@ next-env.d.ts
 # Env, matches .env, .env.local, .env.production etc.
 .env
 .env.*
+# ...but the committed template must stay trackable. Without this, .env.*
+# matches it, and it only survives today because it is already tracked.
 !.env.example
 
 # Editor
@@ -36,3 +38,7 @@ next-env.d.ts
 # Generated for AI agents by `next build`
 AGENTS.md
 CLAUDE.md
+
+# Local working notes and design docs, kept out of the repo
+docs
+.remember
