@@ -1,33 +1,53 @@
 # Mutual Fund Returns Calculator
 
 Upload a CSV of your Indian mutual fund transactions and see current value,
-absolute return, per-transaction CAGR and a portfolio XIRR. Current NAVs come
-from AMFI.
+absolute return, per-transaction CAGR and portfolio XIRR. NAVs come from AMFI.
 
 Not affiliated with or endorsed by any AMC. Not investment advice.
 
 ## Running it
 
 ```bash
-npm install                 # backend deps
-npm install --prefix frontend
-
-npm run dev                 # backend on :3000 (nodemon)
-npm run dev --prefix frontend   # frontend on :5173 (vite)
+npm install
+npm run dev        # http://localhost:3000
 ```
 
-The frontend talks to `http://localhost:3000` in development and to its own
-origin in production.
-
-Production:
+One process serves both the UI and the API.
 
 ```bash
-npm run build               # installs both halves and builds the frontend
-NODE_ENV=production npm start
+npm run build && npm start   # production
+npm test                     # 135 tests
+npm run lint
 ```
 
-`NODE_ENV=production` is **required** — the server only serves `frontend/dist`
-when it is set. Without it the API works and every page returns 404.
+Deploys to Vercel with no configuration.
+
+## Layout
+
+```
+app/
+  page.jsx              upload screen
+  sheet/page.jsx        results table
+  glossary/page.jsx     every formula, written out
+  api/nav/route.js      NAV lookup
+  api/insights/route.js AI helper (optional)
+components/             client components
+lib/
+  calculateUtils.js     all the maths, pure, no React, no I/O
+  amfi.js               AMFI fetch, parse, cache, scheme matching
+  grouping.js           folio + scheme grouping, XIRR per holding
+  pii.js                personal data scrubbing
+  csvSession.js         upload to sheet handoff
+  sorting.js  motion.js  miniMarkdown.js  rateLimit.js
+middleware.js           HTTP Basic Auth over the whole app
+```
+
+`lib/calculateUtils.js` is the only module that decides what a number means and
+`lib/amfi.js` is the only one that knows about AMFI. Keep it that way: the bugs
+this project has had all came from those concerns spreading across call sites.
+
+Your CSV never leaves the browser. PapaParse runs client-side, rows live in
+`sessionStorage`, and only scheme names are sent to the server.
 
 ## CSV format
 
@@ -40,111 +60,71 @@ when it is set. Without it the API works and every page returns 404.
 | `FolioNo` | no | Shown and filterable |
 | `Type` | no | Transaction type, filterable |
 
-Header matching ignores case and spacing, so `Scheme Name` and `schemename`
-both work.
-
-```csv
-FolioNo,Date,SchemeName,Type,NAV,Amount
-12345678,13/09/2021,SBI Contra Fund - Direct Plan - Growth,Purchase,65.2716,10000
-```
-
 Dates may be `DD/MM/YYYY`, `MM/DD/YYYY`, `YYYY-MM-DD` or `11-Sep-2026`. The
 order is detected across the whole column; if every row is ambiguous the app
 says so and assumes `DD/MM/YYYY`.
 
-## How the numbers are computed
+## How the numbers work
+
+See `/glossary` in the running app for the full write-up. In short:
 
 ```
-units            = amount / purchaseNAV
-currentValue     = units * currentNAV
-absoluteGain     = currentValue - amount
-absoluteReturn % = (currentNAV / purchaseNAV - 1) * 100
-CAGR %           = ((currentNAV / purchaseNAV) ^ (1 / years) - 1) * 100
+units        = amount / purchaseNAV
+currentValue = units * currentNAV
+CAGR %       = ((currentNAV / purchaseNAV) ^ (1 / years) - 1) * 100
 ```
 
-Value is always `units × NAV` and is never reconstructed from CAGR.
+Value is always `units * NAV` and never reconstructed from CAGR. Day count is a
+flat 365, matching Excel and Google Sheets, so CAGR and XIRR reconcile with a
+spreadsheet and with each other.
 
-- **CAGR is suppressed below one year.** Annualising a few weeks of growth
-  produces a meaningless number, so the app shows absolute return instead.
-- **Per-row CAGR is not additive.** Use the portfolio XIRR for an overall
-  figure — averaging annualised rates across different holding periods
-  describes nothing real.
-- **Expense ratio is already in NAV.** Do not subtract it again.
-- Figures are unrealised and exclude exit load and tax.
-- Purchase NAV comes from your file and is not verified against the NAV
-  actually published that day.
+Per-row CAGR is not additive; use XIRR. Expense ratio is already inside NAV, so
+never subtract it again. Figures are unrealised and exclude exit load and tax.
 
-Rows that cannot be priced show `—` with a reason and are excluded from totals
-rather than counted as zero.
+## Privacy
+
+The AI helper is optional and user-invoked. Before anything is sent:
+
+- **Folio numbers never leave the browser.** Holdings go as `H1`, `H2`.
+- **Rupee amounts are off by default.** Percentages answer almost every
+  question without revealing what the portfolio is worth. Opt in per session.
+- **Free text is scrubbed** for PAN, Aadhaar, IFSC, email, phone and account
+  numbers, on the client and again on the server so a tampered request cannot
+  bypass it.
+- **Failure reasons are reduced to fixed phrases**, because the UI version
+  interpolates raw cell content from your file.
+- The exact contents of the request are shown in the UI before you send.
 
 ## Data source and AMFI terms
 
-AMFI's `NAVAll.txt`. AMFI is the body mandated to publish daily NAVs — SEBI does
+AMFI's `NAVAll.txt`. AMFI is the body mandated to publish daily NAVs. SEBI does
 not publish a NAV feed, and CAMS/KFintech closed third-party API access to
 investor data in September 2025.
 
-### What this app does to keep its footprint small
+To keep the footprint small: nothing is written to disk, the snapshot is
+revalidated with a conditional GET (a 0-byte 304 when unchanged), only the
+schemes in a request are returned and capped at 200, responses are marked
+`private, no-store`, every response carries AMFI attribution, and the client
+identifies itself via `AMFI_USER_AGENT`.
 
-AMFI's [Terms of Use](https://www.amfiindia.com/terms-of-use) grant "a
-non-exclusive, personal, non-transferable, non-sublicensable, limited and
-revocable right" for "personal and non-commercial use only", state that you
-"may not publicly perform, publicly display, transmit, publish... or create
-derivative works based on anything available through the Site", and that "You
-shall not store electronically any significant portion of any part of the
-Site."
-
-Accordingly:
-
-- **Nothing is written to disk.** The NAV index lives in process memory only and
-  is rebuilt from scratch on restart. There is no database, no file cache, no
-  snapshot committed to the repo.
-- **Conditional GET, not repeated downloads.** AMFI supports
-  `If-Modified-Since`/`ETag` and returns a 0-byte `304` when nothing has
-  changed, so a revalidation costs ~44 ms and no data transfer instead of
-  re-pulling 1.5 MB. Tune with `NAV_REVALIDATE_MS`.
-- **Only what was asked for is returned.** The API answers with the specific
-  schemes in the request and is capped at 200 per call, so it cannot be walked
-  to mirror the dataset. There is no bulk endpoint.
-- **Responses are marked `Cache-Control: private, no-store`** so intermediaries
-  do not retain them, and every response carries AMFI attribution.
-- **The client identifies itself** via `AMFI_USER_AGENT`, so AMFI can see who is
-  calling and contact or block the deployment.
-- `robots.txt` on amfiindia.com disallows only `/admin/`, `/login/` and
-  `/search/`, so `/spages/` is permitted to automated clients.
-
-### What code cannot settle
-
-The restriction that actually bites is **"personal and non-commercial use"** and
-the bar on transmitting or publishing. That is a question about *how you deploy
-this*, not about cache duration — no TTL makes a public, third-party-facing
-deployment personal use.
-
-- **Running it locally for your own portfolio** is the case the licence
-  plainly describes.
-- **Hosting it publicly for others** is in tension with that wording regardless
-  of the measures above. AMFI's terms name the remedy themselves: written
-  approval. Ask AMFI before deploying publicly, or get legal advice.
-
-This is not a legal opinion, and none of the above should be read as one.
-
-The file's column order **has changed before** (it gained `Plan` and `Option`,
-shifting NAV from index 4 to 6, which silently broke every calculation). The
-parser therefore resolves columns from the header row and throws if an expected
-column is missing, so the next change fails loudly.
-
-Matching requires scheme name, plan and option to agree. If more than one
-scheme matches, the API returns `ambiguous` rather than guessing — a Regular
-NAV shown against a Direct holding is a confidently wrong number.
+**Unresolved:** AMFI's terms grant a "personal and non-commercial" licence and
+restrict transmitting or publishing. That is about *how you deploy this*, not
+cache duration. Running it privately is the case the licence describes; hosting
+it publicly is in tension with it regardless of the measures above. Their terms
+name written approval as the remedy. Not a legal opinion.
 
 ## Environment
 
-See `.env.example`. All variables are optional except in production.
+All optional except Basic Auth in production.
 
-## Tests
+| Variable | Default | Purpose |
+|---|---|---|
+| `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | none | Required in production; unset means the app returns 503 rather than exposing itself |
+| `GROQ_API_KEY` | none | Enables the AI helper; absent, it reports itself unconfigured |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Groq deprecates models without notice |
+| `NAV_REVALIDATE_MS` | `3600000` | AMFI snapshot revalidation interval |
+| `AMFI_USER_AGENT` | generic | Put a real contact here before deploying publicly |
+| `RATE_LIMIT_PER_MINUTE` | `30` | Per serverless instance, so a speed bump rather than a limit |
 
-```bash
-npm test        # vitest, from the repo root
-```
-
-`frontend/src/utils/calculateUtils.test.js` pins the arithmetic: the doubled
-holding case, sub-1-year suppression, date parsing, and XIRR.
+**Known gap:** rate limiting applies to the API routes, not to Basic Auth
+attempts, so login guesses are unlimited. Use a long random password.
