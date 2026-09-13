@@ -20,7 +20,7 @@ npm test                     # 135 tests
 npm run lint
 ```
 
-Deploys to Vercel with no configuration. See `docs/vercel-deployment.md`.
+Deploys to Vercel with no configuration.
 
 ## Layout
 
@@ -111,12 +111,11 @@ identifies itself via `AMFI_USER_AGENT`.
 restrict transmitting or publishing. That is about *how you deploy this*, not
 cache duration. Running it privately is the case the licence describes; hosting
 it publicly is in tension with it regardless of the measures above. Their terms
-name written approval as the remedy. See `docs/amfi-permission-request.md`.
-Not a legal opinion.
+name written approval as the remedy. Not a legal opinion.
 
 ## Environment
 
-All optional except Basic Auth in production. See `.env.example`.
+All optional except Basic Auth in production.
 
 | Variable | Default | Purpose |
 |---|---|---|
