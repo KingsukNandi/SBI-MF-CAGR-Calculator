@@ -1,0 +1,38 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Dependencies
+node_modules
+
+# Next.js
+.next
+out
+next-env.d.ts
+
+# Vercel
+.vercel
+
+# Env, matches .env, .env.local, .env.production etc.
+.env
+.env.*
+!.env.example
+
+# Editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Generated for AI agents by `next build`
+AGENTS.md
+CLAUDE.md

@@ -1,0 +1,33 @@
+{
+  "name": "mf-returns-calculator",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Upload a CSV of Indian mutual fund transactions and see current value, returns and portfolio XIRR. NAV data from AMFI.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "framer-motion": "^12.9.2",
+    "next": "^16.3.5",
+    "papaparse": "^5.5.2",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "daisyui": "^5.7.37",
+    "eslint": "^9.22.0",
+    "eslint-config-next": "^16.3.5",
+    "tailwindcss": "^4.3.3",
+    "vitest": "^5.0.0"
+  }
+}
