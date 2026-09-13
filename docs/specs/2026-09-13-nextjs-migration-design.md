@@ -1,4 +1,4 @@
-# Next.js migration — design
+# Next.js migration, design
 
 **Date:** 2026-09-13
 **Status:** awaiting review
@@ -24,7 +24,7 @@ Building grouped XIRR or the AI helper before it would mean building them twice.
 | Decision | Choice | Why |
 |---|---|---|
 | Router | App Router | What Vercel recommends; Pages Router is the pattern Next.js is moving away from |
-| Data flow | Keep client-side | `Sheet.jsx` owns all state today. Moving to RSC is a separate, bigger change — not bundled into an infrastructure move. |
+| Data flow | Keep client-side | `Sheet.jsx` owns all state today. Moving to RSC is a separate, bigger change, not bundled into an infrastructure move. |
 | NAV cache | Memory-only, per instance | Holds the "nothing stored durably" line taken for AMFI compliance. See "Known trade-offs". |
 | Rate limiting | In-memory, documented as weak | No new infra. Still stops a naive loop. |
 | CSV handoff | `sessionStorage` | `location.state` does not exist in Next.js; this also fixes refresh wiping data |
@@ -37,17 +37,17 @@ app/
   page.jsx                Uploader route  ("use client")
   sheet/page.jsx          Sheet route     ("use client")
   globals.css             from frontend/src/index.css
-  api/nav/route.js        GET handler — replaces backend/{server,routes,controllers}
+  api/nav/route.js        GET handler, replaces backend/{server,routes,controllers}
 components/
   Uploader.jsx  Sheet.jsx  PortfolioSummary.jsx  TableFilters.jsx  ErrorBoundary.jsx
 lib/
   calculateUtils.js       moved verbatim from frontend/src/utils/
-  calculateUtils.test.js  moved verbatim — the migration's safety net
+  calculateUtils.test.js  moved verbatim, the migration's safety net
   amfi.js                 AMFI parser + snapshot cache, extracted from navControllers.js
 public/
   sample.csv
 next.config.mjs           security headers (replaces helmet)
-package.json              single, at root — replaces the two that exist today
+package.json              single, at root, replaces the two that exist today
 vitest.config.js
 ```
 
@@ -55,21 +55,21 @@ vitest.config.js
 
 ## Module boundaries
 
-**`lib/calculateUtils.js`** — pure functions, no I/O, no React. Unchanged by this
+**`lib/calculateUtils.js`**, pure functions, no I/O, no React. Unchanged by this
 migration. Public surface: `computeRow`, `xirr`, `parseRowDate`, `detectDateOrder`,
-`yearsBetween`, and the formatters. This is the only module that decides what a
-number means, and it stays that way.
+`yearsBetween` and the formatters. This is the only module that decides what a
+number means and it stays that way.
 
-**`lib/amfi.js`** — owns everything about AMFI: the URL, the header-mapped
-parser, the snapshot cache, conditional GET, and scheme matching. Exports
+**`lib/amfi.js`**, owns everything about AMFI: the URL, the header-mapped
+parser, the snapshot cache, conditional GET and scheme matching. Exports
 `getSnapshot()` and `lookup(index, query)`. Knows nothing about HTTP or React.
 Extracting this from the controller is what makes the route handler trivial and
-the parser independently testable — which it is not today.
+the parser independently testable, which it is not today.
 
-**`app/api/nav/route.js`** — HTTP only: validate input, call `lib/amfi.js`, shape
+**`app/api/nav/route.js`**, HTTP only: validate input, call `lib/amfi.js`, shape
 the response, set headers. No parsing logic.
 
-**Components** — unchanged in behaviour. Each gets `"use client"` because all five
+**Components**, unchanged in behaviour. Each gets `"use client"` because all five
 use `useState`/`useEffect`.
 
 ## Express → Next mapping
@@ -79,14 +79,14 @@ use `useState`/`useEffect`.
 | `cors()` | removed | Same origin; nothing to allow |
 | `helmet()` | `headers()` in `next.config.mjs` | CSP, nosniff, frame-ancestors |
 | `morgan` | Vercel logs | Query-string redaction is preserved by not logging URLs ourselves |
-| `express-rate-limit` | in-memory limiter in the route handler | Weaker — see trade-offs |
+| `express-rate-limit` | in-memory limiter in the route handler | Weaker, see trade-offs |
 | `express.static(dist)` | Next's own static serving | Removed entirely |
 | SPA fallback `/{*splat}` | file-system routing | Removed entirely |
 | graceful shutdown | n/a | No long-lived process |
 
 ## Data flow
 
-1. `app/page.jsx` — user picks a CSV. PapaParse runs **in the browser**; nothing
+1. `app/page.jsx`, user picks a CSV. PapaParse runs **in the browser**; nothing
    uploaded. Parsed rows written to `sessionStorage` under `mf:rows`.
 2. Navigate to `/sheet`.
 3. `app/sheet/page.jsx` reads `sessionStorage`, builds rows, prices what it can.
@@ -96,17 +96,17 @@ use `useState`/`useEffect`.
 7. `computeRow()` prices every row. Same function for load and edit.
 
 `sessionStorage` holds the user's own financial data in their own browser, is
-cleared when the tab closes, and never reaches the server. Amounts and folio
+cleared when the tab closes and never reaches the server. Amounts and folio
 numbers stay client-side exactly as they do today.
 
 ## Known trade-offs
 
 **Cold starts re-download 1.5 MB.** Next's docs state the default cache handler
-does no in-memory caching for route handlers, and that memory is discarded on
-instance teardown. A cold lambda has no ETag, so it cannot revalidate — it must
+does no in-memory caching for route handlers and that memory is discarded on
+instance teardown. A cold lambda has no ETag, so it cannot revalidate, it must
 pull the full file (~1s). Warm instances serve from memory in ~2 ms and
 revalidate with 0-byte 304s. Accepted: Vercel keeps instances warm under any real
-traffic, and this preserves the compliance posture.
+traffic and this preserves the compliance posture.
 
 **Rate limiting counts per instance.** With N warm instances the effective limit
 is roughly N× the configured one. Accepted as a speed bump. If this ever needs to
@@ -121,16 +121,16 @@ possible follow-up, deliberately out of scope.
 
 The migration is a refactor, so the test strategy is **parity, not new coverage**:
 
-1. `lib/calculateUtils.test.js` — 20 tests, must pass unchanged at every step.
+1. `lib/calculateUtils.test.js`, 20 tests, must pass unchanged at every step.
    If these break, the calculation layer was touched, which it should not be.
-2. New `lib/amfi.test.js` — extracting the parser finally makes it testable.
+2. New `lib/amfi.test.js`, extracting the parser finally makes it testable.
    Cover: header-mapped column resolution, throwing when a column disappears,
    plan/option matching, ambiguous results returning candidates rather than
    guessing. Fixture: a trimmed real `NAVAll.txt`.
 3. Route handler smoke test against the dev server: the nine schemes from the
    user's console must all return 200 with numeric NAVs.
 4. End-to-end parity: `public/sample.csv` through the running app must produce
-   the same portfolio totals as today — invested ₹1,98,000, value ₹2,90,494,
+   the same portfolio totals as today, invested ₹1,98,000, value ₹2,90,494,
    XIRR 10.53%, 1 row excluded. Any drift means the port changed a number.
 5. `npm run build` must succeed and `next lint` must be clean.
 
@@ -139,7 +139,7 @@ The migration is a refactor, so the test strategy is **parity, not new coverage*
 Each step ends runnable, so a break is attributable.
 
 1. Scaffold Next.js at root; single `package.json`; wire vitest.
-2. Move `lib/calculateUtils.js` + tests. **Run tests — must be green.**
+2. Move `lib/calculateUtils.js` + tests. **Run tests, must be green.**
 3. Extract `lib/amfi.js` from `navControllers.js`; add `lib/amfi.test.js`.
 4. `app/api/nav/route.js`; verify the nine schemes return real NAVs.
 5. Port components with `"use client"`; swap router state for `sessionStorage`.
@@ -150,15 +150,15 @@ Each step ends runnable, so a break is attributable.
 
 ## Out of scope
 
-- Grouped XIRR by folio + scheme — sub-project 2
-- Groq AI helper — sub-project 3
+- Grouped XIRR by folio + scheme, sub-project 2
+- Groq AI helper, sub-project 3
 - Server-side NAV fetching / RSC
 - TypeScript
 - Any change to how a number is computed
 
 ## Open question
 
-The Render deployment currently serving this app, and the AMFI written-approval
+The Render deployment currently serving this app and the AMFI written-approval
 question, are unresolved from earlier. Migration does not change that position
-either way — but "deploy to Vercel" makes it live in a second place, so it should
+either way, but "deploy to Vercel" makes it live in a second place, so it should
 be settled before step 9.
