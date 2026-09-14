@@ -57,6 +57,7 @@ export default function GlossaryPage() {
           ["cagr", "CAGR"],
           ["xirr", "XIRR"],
           ["avg-cost", "Average cost"],
+          ["ter", "Expense ratio"],
           ["plan-option", "Plan and option"],
           ["excluded", "What is excluded"],
         ].map(([id, label]) => (
@@ -249,7 +250,41 @@ and today's value is positive (money in)`}</Formula>
           </p>
         </Term>
 
-        <Term id="excluded" name="What these numbers exclude">
+        <Term id="ter" name="Expense ratio (TER)">
+        <p>
+          What the fund charges you each year to run the scheme, as a
+          percentage of assets. SEBI requires every AMC to publish it daily on
+          AMFI&apos;s website, which is where this figure comes from.
+        </p>
+        <Caution title="It is already taken out of the returns shown">
+          <p>
+            Fund expenses accrue into the NAV every day, so the NAV you see is
+            already net of them. Every return on this page, CAGR and XIRR
+            alike, is therefore <strong>already after expenses</strong>.
+          </p>
+          <p className="mt-2">
+            The column is shown so you can see what you are paying. It is never
+            subtracted from anything. Subtracting it again would count the same
+            cost twice and understate your returns by roughly the full expense
+            ratio each year.
+          </p>
+        </Caution>
+        <p>
+          Where it is genuinely useful is comparing plans. A Regular plan pays
+          distributor commission and a Direct plan does not, so the identical
+          fund has two different expense ratios and two different NAVs. Where
+          you hold a Regular plan, the table shows how much less the Direct
+          plan of that same scheme charges.
+        </p>
+        <p className="text-sm text-gray-600">
+          The figure is dated, because AMFI&apos;s file fills in over several
+          days and the most recent day is usually incomplete. This app picks
+          the most recent well-populated date rather than today, and shows
+          nothing at all for a scheme it cannot match.
+        </p>
+      </Term>
+
+      <Term id="excluded" name="What these numbers exclude">
           <ul className="list-disc pl-5 space-y-1.5">
             <li>
               <strong>Tax.</strong> Nothing here is post-tax. Capital gains rules
@@ -259,7 +294,11 @@ and today's value is positive (money in)`}</Formula>
             </li>
             <li>
               <strong>Exit load.</strong> Charged on redemption by many schemes,
-              typically within a year of purchase.
+              typically within a year of purchase. Unlike the expense ratio,
+              there is no machine-readable source for it: SEBI sets no
+              disclosure format, AMFI publishes nothing, and it exists only as
+              prose in each scheme&apos;s offer document. Rather than guess,
+              this app leaves it out and says so.
             </li>
             <li>
               <strong>Stamp duty</strong> of 0.005% on purchases since July 2020.

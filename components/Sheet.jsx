@@ -13,6 +13,10 @@ import TableFilters from "./TableFilters";
 import HoldingsTable from "./HoldingsTable";
 import ChatWidget from "./ChatWidget";
 import { pageTransition, viewTransition, tap, DURATION, EASE } from "@/lib/motion";
+import { useColumnOrder } from "@/lib/useColumnOrder";
+import ColumnHeader from "./ColumnHeader";
+import ResetColumnsButton from "./ResetColumnsButton";
+import ColumnPicker from "./ColumnPicker";
 import PortfolioSummary from "./PortfolioSummary";
 import { groupHoldings, summariseHoldings } from "@/lib/grouping";
 import {
@@ -37,12 +41,13 @@ const COLUMNS = [
   { key: "date", label: "Date", align: "center", editable: "date" },
   { key: "amount", label: "Amount", align: "right", editable: "number" },
   { key: "purchaseNAV", label: "Purchase NAV", align: "right", editable: "number" },
-  { key: "currentNAV", label: "NAV", align: "right", editable: "number" },
+  { key: "currentNAV", label: "Current NAV", align: "right", editable: "number" },
   { key: "units", label: "Units", align: "right" },
   { key: "currentValue", label: "Value", align: "right" },
   { key: "absoluteGain", label: "Gain", align: "right" },
   { key: "absoluteReturn", label: "Return", align: "right" },
   { key: "cagr", label: "CAGR", align: "right" },
+  { key: "ter", label: "Expense ratio", align: "right" },
 ];
 
 // Tolerate the header spellings people actually have in their CSVs.
@@ -141,11 +146,13 @@ const Sheet = () => {
 
   const [error, setError] = useState("");
   const [navDate, setNavDate] = useState(null);
+  const [ter, setTer] = useState({ available: false, byKey: new Map(), date: null });
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: "", direction: "" });
   const [view, setView] = useState("transactions");
   const reduceMotion = useReducedMotion();
+  const order = useColumnOrder("transactions", COLUMNS);
 
   useEffect(() => {
     // Nothing to fetch while hydrating, or when the stash was empty -- in both
@@ -196,6 +203,8 @@ const Sheet = () => {
                 currentNAV: hit.data.nav,
                 navDate: hit.data.date,
                 matchedScheme: hit.data.matchedScheme,
+                plan: hit.data.plan,
+                option: hit.data.option,
                 lookup: "matched",
               });
             }
@@ -222,6 +231,40 @@ const Sheet = () => {
       cancelled = true;
     };
   }, [uploaded, dateOrder.order, setRows]);
+
+  // TER is enrichment: fetched separately from NAV so a slow or failed lookup
+  // cannot delay or break pricing. Failure leaves the column empty.
+  useEffect(() => {
+    const wanted = [
+      ...new Set(
+        rows
+          .filter((r) => r.matchedScheme && r.plan)
+          .map((r) => `${r.matchedScheme}|${r.plan}`)
+      ),
+    ];
+    if (!wanted.length) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const query = new URLSearchParams({ schemes: wanted.join(",") });
+        const response = await fetch(`/api/ter?${query}`);
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (cancelled || !payload.available) return;
+        setTer({
+          available: true,
+          date: payload.terDate,
+          byKey: new Map(payload.data.map((d) => [d.scheme, d])),
+        });
+      } catch {
+        // Silent: an absent expense ratio is not worth an error banner.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rows]);
 
   // Edits address a row by id. The old code passed the index of the *rendered*
   // array into the *filtered* array, so editing under an active search wrote
@@ -436,6 +479,15 @@ const Sheet = () => {
 
       <TableFilters rows={rows} filters={filters} onFilterChange={setFilters} />
 
+      {view === "transactions" && (
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <ColumnPicker label="Columns" order={order} />
+          </div>
+          <ResetColumnsButton orders={[{ label: "transaction", order }]} />
+        </>
+      )}
+
       <AnimatePresence mode="wait" initial={false}>
       {view === "holdings" ? (
         <motion.div
@@ -458,33 +510,23 @@ const Sheet = () => {
       <div className="overflow-auto w-full max-h-[calc(100vh-6rem)] border border-gray-200">
         <table className="table w-max min-w-full bg-white whitespace-nowrap">
           <thead className="sticky top-0 z-10 bg-[#00b5ef] text-white">
-            <tr>
-              {COLUMNS.map((column) => {
-                const sorted = sortConfig.key === column.key;
-                return (
-                  <th
-                    key={column.key}
-                    scope="col"
-                    aria-sort={
-                      sorted
-                        ? sortConfig.direction === "asc"
-                          ? "ascending"
-                          : "descending"
-                        : "none"
-                    }
-                    className="p-0 text-center"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSort(column.key)}
-                      className="w-full px-3 py-2 hover:bg-[#0095c7] focus-visible:outline-2 focus-visible:outline-white cursor-pointer font-semibold"
-                    >
-                      {column.label}
-                      {sorted ? (sortConfig.direction === "asc" ? " ↑" : " ↓") : ""}
-                    </button>
-                  </th>
-                );
-              })}
+            <tr className="group/head">
+              {order.columns.map((column, i) => (
+                <ColumnHeader
+                  key={column.key}
+                  column={{ ...column, align: `text-${column.align}` }}
+                  index={i}
+                  total={order.columns.length}
+                  sortConfig={sortConfig}
+                  onSort={handleSort}
+                  dragIndex={order.dragIndex}
+                  overIndex={order.overIndex}
+                  handlers={order.handlers}
+                  onNudge={order.nudge}
+                  onResize={order.resize}
+                  width={order.widths[column.key]}
+                />
+              ))}
             </tr>
           </thead>
           <tbody className="text-black">
@@ -495,6 +537,9 @@ const Sheet = () => {
                 index={index}
                 onEdit={handleEdit}
                 reduceMotion={reduceMotion}
+                columns={order.columns}
+                widths={order.widths}
+                ter={ter}
               />
             ))}
             </tbody>
@@ -553,7 +598,7 @@ const Sheet = () => {
   );
 };
 
-const Row = ({ row, index, onEdit, reduceMotion }) => {
+const Row = ({ row, index, onEdit, reduceMotion, columns, widths, ter }) => {
   const priced = row.status === "priced";
   const tone = (value) =>
     value > 0 ? "text-green-700" : value < 0 ? "text-red-600" : "";
@@ -621,6 +666,30 @@ const Row = ({ row, index, onEdit, reduceMotion }) => {
         ) : (
           "-"
         );
+      case "ter": {
+        const hit = ter?.byKey.get(`${row.matchedScheme}|${row.plan}`);
+        if (!hit || hit.ter === null) return "-";
+        const saving =
+          hit.regular !== null && hit.direct !== null ? hit.regular - hit.direct : null;
+        return (
+          <span
+            className="text-gray-600"
+            title={
+              `${hit.ter}% a year, as of ${ter.date}. Already deducted from NAV, so the returns shown are net of it.` +
+              (saving !== null && row.plan === "regular"
+                ? ` The Direct plan of this scheme charges ${hit.direct}%, ${saving.toFixed(2)} percentage points less.`
+                : "")
+            }
+          >
+            {hit.ter.toFixed(2)}%
+            {saving !== null && row.plan === "regular" && saving > 0 && (
+              <span className="text-[10px] text-amber-700 ml-1">
+                (-{saving.toFixed(2)} direct)
+              </span>
+            )}
+          </span>
+        );
+      }
       case "cagr": {
         if (!priced) return "-";
         if (row.cagrOffScale) {
@@ -675,10 +744,11 @@ const Row = ({ row, index, onEdit, reduceMotion }) => {
       }
       className={`transition-colors ${priced ? "hover:bg-gray-50" : "bg-red-50/40"}`}
     >
-      {COLUMNS.map((column) => (
+      {columns.map((column) => (
         <td
           key={column.key}
-          className={`px-2 py-1 tabular-nums align-middle ${ALIGN[column.align]}`}
+          style={widths?.[column.key] ? { maxWidth: widths[column.key] } : undefined}
+          className={`px-2 py-1 tabular-nums align-middle overflow-hidden text-ellipsis ${ALIGN[column.align]}`}
         >
           {cell(column)}
         </td>

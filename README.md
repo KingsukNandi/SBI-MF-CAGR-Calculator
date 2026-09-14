@@ -16,7 +16,7 @@ One process serves both the UI and the API.
 
 ```bash
 npm run build && npm start   # production
-npm test                     # 135 tests
+npm test                     # 210 tests
 npm run lint
 ```
 
@@ -36,8 +36,11 @@ lib/
   calculateUtils.js     all the maths, pure, no React, no I/O
   amfi.js               AMFI fetch, parse, cache, scheme matching
   grouping.js           folio + scheme grouping, XIRR per holding
+  ter.js                expense ratio, display only, never in a calculation
+  xlsx.js               minimal XLSX reader, no dependency
   pii.js                personal data scrubbing
   csvSession.js         upload to sheet handoff
+  columnOrder.js        drag-to-reorder, persisted per table
   sorting.js  motion.js  miniMarkdown.js  rateLimit.js
 middleware.js           HTTP Basic Auth over the whole app
 ```
@@ -80,6 +83,51 @@ spreadsheet and with each other.
 
 Per-row CAGR is not additive; use XIRR. Expense ratio is already inside NAV, so
 never subtract it again. Figures are unrealised and exclude exit load and tax.
+
+## Table columns
+
+Every table's columns can be reordered by dragging the grip beside a heading,
+or with Alt plus the left and right arrow keys when the grip has focus. Drag
+and drop has no keyboard equivalent of its own, so without the second path the
+feature would not exist for keyboard users at all.
+
+Widths resize by dragging the right edge of a heading, or with the arrow keys
+when that handle has focus (Shift for larger steps). Double clicking it resets
+that one column. Widths are clamped to a readable range, so a column cannot be
+dragged to nothing or made wide enough to push the rest off screen.
+
+The dropdown above each table shows and hides columns. Order is preserved
+while hidden, so unhiding returns a column to where it was rather than
+appending it, and the last visible column cannot be hidden.
+
+All three are saved in `localStorage` per table. Order is stored as column
+**keys**, not positions, and visibility as the *hidden* set: a layout saved
+today survives a column being added, removed or renamed tomorrow, and a newly
+shipped column defaults to visible rather than being hidden by an old
+preference. One reset control clears order, widths and visibility together.
+
+## Expense ratio
+
+The TER column comes from AMFI's daily Format 7E file, mandated by SEBI Master
+Circular para 11.2.2. It is joined to your holdings by scheme name using the
+same normaliser the NAV matcher uses, which covers about 99% of currently
+priced schemes; anything it cannot match shows nothing rather than a guess.
+
+**It is display only.** NAV is already net of expenses (para 9.2.3: expenses
+accrue into the NAV daily), so every return here is already after fees.
+Subtracting TER again would double-count it. `lib/ter.js` is the only module
+that knows about it and `lib/calculateUtils.js` must never import it; there is
+a test asserting exactly that.
+
+Fetched separately from NAV so a slow or failed TER lookup cannot delay or
+break pricing. AMFI's file fills in over several days, so the most recent
+well-populated date is used rather than today, and that date is shown.
+
+**Exit load is deliberately absent.** SEBI imposes no disclosure format for it,
+AMFI publishes nothing, and it exists only as prose in ~1,900 scheme documents
+whose correct application depends on each transaction's purchase date. A
+hand-maintained approximation shown to the decimal point would be worse than
+its absence.
 
 ## Privacy
 
