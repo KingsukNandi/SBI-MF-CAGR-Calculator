@@ -47,6 +47,7 @@ const COLUMNS = [
   { key: "absoluteGain", label: "Gain", align: "right" },
   { key: "absoluteReturn", label: "Return", align: "right" },
   { key: "cagr", label: "CAGR", align: "right" },
+  { key: "ter", label: "Expense ratio", align: "right" },
 ];
 
 // Tolerate the header spellings people actually have in their CSVs.
@@ -145,6 +146,7 @@ const Sheet = () => {
 
   const [error, setError] = useState("");
   const [navDate, setNavDate] = useState(null);
+  const [ter, setTer] = useState({ available: false, byKey: new Map(), date: null });
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState({});
   const [sortConfig, setSortConfig] = useState({ key: "", direction: "" });
@@ -201,6 +203,8 @@ const Sheet = () => {
                 currentNAV: hit.data.nav,
                 navDate: hit.data.date,
                 matchedScheme: hit.data.matchedScheme,
+                plan: hit.data.plan,
+                option: hit.data.option,
                 lookup: "matched",
               });
             }
@@ -227,6 +231,40 @@ const Sheet = () => {
       cancelled = true;
     };
   }, [uploaded, dateOrder.order, setRows]);
+
+  // TER is enrichment: fetched separately from NAV so a slow or failed lookup
+  // cannot delay or break pricing. Failure leaves the column empty.
+  useEffect(() => {
+    const wanted = [
+      ...new Set(
+        rows
+          .filter((r) => r.matchedScheme && r.plan)
+          .map((r) => `${r.matchedScheme}|${r.plan}`)
+      ),
+    ];
+    if (!wanted.length) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const query = new URLSearchParams({ schemes: wanted.join(",") });
+        const response = await fetch(`/api/ter?${query}`);
+        if (!response.ok) return;
+        const payload = await response.json();
+        if (cancelled || !payload.available) return;
+        setTer({
+          available: true,
+          date: payload.terDate,
+          byKey: new Map(payload.data.map((d) => [d.scheme, d])),
+        });
+      } catch {
+        // Silent: an absent expense ratio is not worth an error banner.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [rows]);
 
   // Edits address a row by id. The old code passed the index of the *rendered*
   // array into the *filtered* array, so editing under an active search wrote
@@ -501,6 +539,7 @@ const Sheet = () => {
                 reduceMotion={reduceMotion}
                 columns={order.columns}
                 widths={order.widths}
+                ter={ter}
               />
             ))}
             </tbody>
@@ -559,7 +598,7 @@ const Sheet = () => {
   );
 };
 
-const Row = ({ row, index, onEdit, reduceMotion, columns, widths }) => {
+const Row = ({ row, index, onEdit, reduceMotion, columns, widths, ter }) => {
   const priced = row.status === "priced";
   const tone = (value) =>
     value > 0 ? "text-green-700" : value < 0 ? "text-red-600" : "";
@@ -627,6 +666,30 @@ const Row = ({ row, index, onEdit, reduceMotion, columns, widths }) => {
         ) : (
           "-"
         );
+      case "ter": {
+        const hit = ter?.byKey.get(`${row.matchedScheme}|${row.plan}`);
+        if (!hit || hit.ter === null) return "-";
+        const saving =
+          hit.regular !== null && hit.direct !== null ? hit.regular - hit.direct : null;
+        return (
+          <span
+            className="text-gray-600"
+            title={
+              `${hit.ter}% a year, as of ${ter.date}. Already deducted from NAV, so the returns shown are net of it.` +
+              (saving !== null && row.plan === "regular"
+                ? ` The Direct plan of this scheme charges ${hit.direct}%, ${saving.toFixed(2)} percentage points less.`
+                : "")
+            }
+          >
+            {hit.ter.toFixed(2)}%
+            {saving !== null && row.plan === "regular" && saving > 0 && (
+              <span className="text-[10px] text-amber-700 ml-1">
+                (-{saving.toFixed(2)} direct)
+              </span>
+            )}
+          </span>
+        );
+      }
       case "cagr": {
         if (!priced) return "-";
         if (row.cagrOffScale) {
