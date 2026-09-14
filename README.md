@@ -81,6 +81,18 @@ spreadsheet and with each other.
 Per-row CAGR is not additive; use XIRR. Expense ratio is already inside NAV, so
 never subtract it again. Figures are unrealised and exclude exit load and tax.
 
+## Table columns
+
+Every table's columns can be reordered by dragging the grip beside a heading,
+or with Alt plus the left and right arrow keys when the grip has focus. Drag
+and drop has no keyboard equivalent of its own, so without the second path the
+feature would not exist for keyboard users at all.
+
+The order is saved in `localStorage` per table. Stored values are column
+**keys**, not positions: an order saved today survives a column being added,
+removed or renamed tomorrow, and a newly shipped column is appended rather
+than hidden. A reset control appears once anything has moved.
+
 ## Privacy
 
 The AI helper is optional and user-invoked. Before anything is sent:

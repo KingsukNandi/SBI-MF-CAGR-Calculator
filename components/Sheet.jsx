@@ -13,6 +13,9 @@ import TableFilters from "./TableFilters";
 import HoldingsTable from "./HoldingsTable";
 import ChatWidget from "./ChatWidget";
 import { pageTransition, viewTransition, tap, DURATION, EASE } from "@/lib/motion";
+import { useColumnOrder } from "@/lib/useColumnOrder";
+import ColumnHeader from "./ColumnHeader";
+import ResetColumnsButton from "./ResetColumnsButton";
 import PortfolioSummary from "./PortfolioSummary";
 import { groupHoldings, summariseHoldings } from "@/lib/grouping";
 import {
@@ -146,6 +149,7 @@ const Sheet = () => {
   const [sortConfig, setSortConfig] = useState({ key: "", direction: "" });
   const [view, setView] = useState("transactions");
   const reduceMotion = useReducedMotion();
+  const order = useColumnOrder("transactions", COLUMNS);
 
   useEffect(() => {
     // Nothing to fetch while hydrating, or when the stash was empty -- in both
@@ -436,6 +440,10 @@ const Sheet = () => {
 
       <TableFilters rows={rows} filters={filters} onFilterChange={setFilters} />
 
+      {view === "transactions" && (
+        <ResetColumnsButton orders={[{ label: "transaction", order }]} />
+      )}
+
       <AnimatePresence mode="wait" initial={false}>
       {view === "holdings" ? (
         <motion.div
@@ -458,33 +466,21 @@ const Sheet = () => {
       <div className="overflow-auto w-full max-h-[calc(100vh-6rem)] border border-gray-200">
         <table className="table w-max min-w-full bg-white whitespace-nowrap">
           <thead className="sticky top-0 z-10 bg-[#00b5ef] text-white">
-            <tr>
-              {COLUMNS.map((column) => {
-                const sorted = sortConfig.key === column.key;
-                return (
-                  <th
-                    key={column.key}
-                    scope="col"
-                    aria-sort={
-                      sorted
-                        ? sortConfig.direction === "asc"
-                          ? "ascending"
-                          : "descending"
-                        : "none"
-                    }
-                    className="p-0 text-center"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => handleSort(column.key)}
-                      className="w-full px-3 py-2 hover:bg-[#0095c7] focus-visible:outline-2 focus-visible:outline-white cursor-pointer font-semibold"
-                    >
-                      {column.label}
-                      {sorted ? (sortConfig.direction === "asc" ? " ↑" : " ↓") : ""}
-                    </button>
-                  </th>
-                );
-              })}
+            <tr className="group/head">
+              {order.columns.map((column, i) => (
+                <ColumnHeader
+                  key={column.key}
+                  column={{ ...column, align: `text-${column.align}` }}
+                  index={i}
+                  total={order.columns.length}
+                  sortConfig={sortConfig}
+                  onSort={handleSort}
+                  dragIndex={order.dragIndex}
+                  overIndex={order.overIndex}
+                  handlers={order.handlers}
+                  onNudge={order.nudge}
+                />
+              ))}
             </tr>
           </thead>
           <tbody className="text-black">
@@ -495,6 +491,7 @@ const Sheet = () => {
                 index={index}
                 onEdit={handleEdit}
                 reduceMotion={reduceMotion}
+                columns={order.columns}
               />
             ))}
             </tbody>
@@ -553,7 +550,7 @@ const Sheet = () => {
   );
 };
 
-const Row = ({ row, index, onEdit, reduceMotion }) => {
+const Row = ({ row, index, onEdit, reduceMotion, columns }) => {
   const priced = row.status === "priced";
   const tone = (value) =>
     value > 0 ? "text-green-700" : value < 0 ? "text-red-600" : "";
@@ -675,7 +672,7 @@ const Row = ({ row, index, onEdit, reduceMotion }) => {
       }
       className={`transition-colors ${priced ? "hover:bg-gray-50" : "bg-red-50/40"}`}
     >
-      {COLUMNS.map((column) => (
+      {columns.map((column) => (
         <td
           key={column.key}
           className={`px-2 py-1 tabular-nums align-middle ${ALIGN[column.align]}`}
