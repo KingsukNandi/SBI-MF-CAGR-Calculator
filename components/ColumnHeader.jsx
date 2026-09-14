@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useCallback } from "react";
 import { ariaSortFor, sortIndicator } from "@/lib/sorting";
 
 /**
@@ -23,10 +23,13 @@ const ColumnHeader = ({
   overIndex,
   handlers,
   onNudge,
+  onResize,
+  width,
   dark = true,
   total,
 }) => {
   const gripRef = useRef(null);
+  const thRef = useRef(null);
 
   const isDragged = dragIndex === index;
   const isTarget = overIndex === index && dragIndex !== null && dragIndex !== index;
@@ -52,9 +55,48 @@ const ColumnHeader = ({
     }
   };
 
+  // Pointer events rather than mouse events, so a stylus or touch drag works.
+  // Listeners go on the window: the pointer routinely leaves the 4px handle
+  // mid-drag, and a handler bound to the handle would stop receiving moves.
+  const startResize = useCallback(
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const startX = event.clientX;
+      const startWidth = thRef.current?.getBoundingClientRect().width ?? 0;
+
+      const onMove = (e) => onResize(column.key, startWidth + (e.clientX - startX));
+      const onUp = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", onUp);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      };
+
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+      // Hold the resize cursor and kill text selection for the whole drag.
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [column.key, onResize]
+  );
+
+  const resizeByKey = (event) => {
+    const step = event.shiftKey ? 40 : 10;
+    const delta =
+      event.key === "ArrowLeft" ? -step : event.key === "ArrowRight" ? step : 0;
+    if (!delta) return;
+    event.preventDefault();
+    const current = thRef.current?.getBoundingClientRect().width ?? 0;
+    onResize(column.key, current + delta);
+  };
+
   return (
     <th
+      ref={thRef}
       scope="col"
+      style={width ? { width, minWidth: width, maxWidth: width } : undefined}
       aria-sort={ariaSortFor(sortConfig, column.key)}
       onDragOver={(e) => {
         // Without preventDefault the browser refuses the drop outright.
@@ -121,6 +163,22 @@ const ColumnHeader = ({
           </span>
         </button>
       </div>
+
+      <span
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={`Resize ${column.label}. Use the left and right arrow keys, or hold Shift for larger steps.`}
+        tabIndex={0}
+        onPointerDown={startResize}
+        onKeyDown={resizeByKey}
+        onDoubleClick={() => onResize(column.key, 0)}
+        title="Drag to resize, double click to reset this column"
+        className={`absolute top-0 right-0 h-full w-1.5 cursor-col-resize select-none touch-none opacity-0 group-hover/head:opacity-40 hover:!opacity-100 focus-visible:opacity-100 focus-visible:outline-2 transition-opacity ${
+          dark
+            ? "bg-white focus-visible:outline-white"
+            : "bg-[#00b5ef] focus-visible:outline-[#00b5ef]"
+        }`}
+      />
     </th>
   );
 };

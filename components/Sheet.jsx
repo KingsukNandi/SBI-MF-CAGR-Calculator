@@ -16,6 +16,7 @@ import { pageTransition, viewTransition, tap, DURATION, EASE } from "@/lib/motio
 import { useColumnOrder } from "@/lib/useColumnOrder";
 import ColumnHeader from "./ColumnHeader";
 import ResetColumnsButton from "./ResetColumnsButton";
+import ColumnPicker from "./ColumnPicker";
 import PortfolioSummary from "./PortfolioSummary";
 import { groupHoldings, summariseHoldings } from "@/lib/grouping";
 import {
@@ -441,7 +442,12 @@ const Sheet = () => {
       <TableFilters rows={rows} filters={filters} onFilterChange={setFilters} />
 
       {view === "transactions" && (
-        <ResetColumnsButton orders={[{ label: "transaction", order }]} />
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <ColumnPicker label="Columns" order={order} />
+          </div>
+          <ResetColumnsButton orders={[{ label: "transaction", order }]} />
+        </>
       )}
 
       <AnimatePresence mode="wait" initial={false}>
@@ -479,6 +485,8 @@ const Sheet = () => {
                   overIndex={order.overIndex}
                   handlers={order.handlers}
                   onNudge={order.nudge}
+                  onResize={order.resize}
+                  width={order.widths[column.key]}
                 />
               ))}
             </tr>
@@ -492,6 +500,7 @@ const Sheet = () => {
                 onEdit={handleEdit}
                 reduceMotion={reduceMotion}
                 columns={order.columns}
+                widths={order.widths}
               />
             ))}
             </tbody>
@@ -550,7 +559,7 @@ const Sheet = () => {
   );
 };
 
-const Row = ({ row, index, onEdit, reduceMotion, columns }) => {
+const Row = ({ row, index, onEdit, reduceMotion, columns, widths }) => {
   const priced = row.status === "priced";
   const tone = (value) =>
     value > 0 ? "text-green-700" : value < 0 ? "text-red-600" : "";
@@ -675,7 +684,8 @@ const Row = ({ row, index, onEdit, reduceMotion, columns }) => {
       {columns.map((column) => (
         <td
           key={column.key}
-          className={`px-2 py-1 tabular-nums align-middle ${ALIGN[column.align]}`}
+          style={widths?.[column.key] ? { maxWidth: widths[column.key] } : undefined}
+          className={`px-2 py-1 tabular-nums align-middle overflow-hidden text-ellipsis ${ALIGN[column.align]}`}
         >
           {cell(column)}
         </td>

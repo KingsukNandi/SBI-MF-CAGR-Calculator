@@ -7,6 +7,7 @@ import { sortItems, nextSortConfig } from "@/lib/sorting";
 import { useColumnOrder } from "@/lib/useColumnOrder";
 import ColumnHeader from "./ColumnHeader";
 import ResetColumnsButton from "./ResetColumnsButton";
+import ColumnPicker from "./ColumnPicker";
 
 const tone = (v) => (v > 0 ? "text-green-700" : v < 0 ? "text-red-600" : "");
 const sign = (v) => (v > 0 ? "+" : "");
@@ -129,6 +130,8 @@ const LotTable = ({ lots, order }) => {
                 overIndex={order.overIndex}
                 handlers={order.handlers}
                 onNudge={order.nudge}
+                onResize={order.resize}
+                width={order.widths[c.key]}
                 dark={false}
               />
             ))}
@@ -138,7 +141,11 @@ const LotTable = ({ lots, order }) => {
           {sorted.map((l) => (
             <tr key={l.id} className="tabular-nums hover:bg-white/60 transition-colors">
               {order.columns.map((c) => (
-                <td key={c.key} className={`${c.align} px-3 py-1`}>
+                <td
+                  key={c.key}
+                  style={order.widths[c.key] ? { maxWidth: order.widths[c.key] } : undefined}
+                  className={`${c.align} px-3 py-1 overflow-hidden text-ellipsis`}
+                >
                   {lotCell(c.key, l)}
                 </td>
               ))}
@@ -191,7 +198,7 @@ const HoldingsTable = ({ holdings }) => {
           type="button"
           onClick={() => toggle(h.key)}
           aria-expanded={open}
-          className="text-left hover:underline focus-visible:outline-2 focus-visible:outline-[#00b5ef] rounded"
+          className="text-left max-w-full block overflow-hidden text-ellipsis hover:underline focus-visible:outline-2 focus-visible:outline-[#00b5ef] rounded"
         >
           <motion.span
             className="text-gray-400 mr-1 inline-block"
@@ -281,6 +288,11 @@ const HoldingsTable = ({ holdings }) => {
 
   return (
     <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <ColumnPicker label="Holding columns" order={order} />
+        <ColumnPicker label="Lot columns" order={lotOrder} />
+      </div>
+
       <ResetColumnsButton
         orders={[
           { label: "holdings", order },
@@ -304,6 +316,8 @@ const HoldingsTable = ({ holdings }) => {
                   overIndex={order.overIndex}
                   handlers={order.handlers}
                   onNudge={order.nudge}
+                  onResize={order.resize}
+                  width={order.widths[c.key]}
                 />
               ))}
             </tr>
@@ -323,7 +337,12 @@ const HoldingsTable = ({ holdings }) => {
                   {order.columns.map((c) => (
                     <td
                       key={c.key}
-                      className={`px-3 py-2 tabular-nums ${c.align}`}
+                      style={
+                        order.widths[c.key]
+                          ? { maxWidth: order.widths[c.key] }
+                          : undefined
+                      }
+                      className={`px-3 py-2 tabular-nums overflow-hidden text-ellipsis ${c.align}`}
                     >
                       {holdingCell(c.key, h, open)}
                     </td>

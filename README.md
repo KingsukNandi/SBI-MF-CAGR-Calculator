@@ -16,7 +16,7 @@ One process serves both the UI and the API.
 
 ```bash
 npm run build && npm start   # production
-npm test                     # 166 tests
+npm test                     # 176 tests
 npm run lint
 ```
 
@@ -89,10 +89,20 @@ or with Alt plus the left and right arrow keys when the grip has focus. Drag
 and drop has no keyboard equivalent of its own, so without the second path the
 feature would not exist for keyboard users at all.
 
-The order is saved in `localStorage` per table. Stored values are column
-**keys**, not positions: an order saved today survives a column being added,
-removed or renamed tomorrow, and a newly shipped column is appended rather
-than hidden. A reset control appears once anything has moved.
+Widths resize by dragging the right edge of a heading, or with the arrow keys
+when that handle has focus (Shift for larger steps). Double clicking it resets
+that one column. Widths are clamped to a readable range, so a column cannot be
+dragged to nothing or made wide enough to push the rest off screen.
+
+The dropdown above each table shows and hides columns. Order is preserved
+while hidden, so unhiding returns a column to where it was rather than
+appending it, and the last visible column cannot be hidden.
+
+All three are saved in `localStorage` per table. Order is stored as column
+**keys**, not positions, and visibility as the *hidden* set: a layout saved
+today survives a column being added, removed or renamed tomorrow, and a newly
+shipped column defaults to visible rather than being hidden by an old
+preference. One reset control clears order, widths and visibility together.
 
 ## Privacy
 
