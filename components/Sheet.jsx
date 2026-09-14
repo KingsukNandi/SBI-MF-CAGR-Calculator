@@ -41,7 +41,7 @@ const COLUMNS = [
   { key: "date", label: "Date", align: "center", editable: "date" },
   { key: "amount", label: "Amount", align: "right", editable: "number" },
   { key: "purchaseNAV", label: "Purchase NAV", align: "right", editable: "number" },
-  { key: "currentNAV", label: "NAV", align: "right", editable: "number" },
+  { key: "currentNAV", label: "Current NAV", align: "right", editable: "number" },
   { key: "units", label: "Units", align: "right" },
   { key: "currentValue", label: "Value", align: "right" },
   { key: "absoluteGain", label: "Gain", align: "right" },

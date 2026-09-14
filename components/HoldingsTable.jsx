@@ -17,7 +17,7 @@ const COLUMNS = [
   { key: "lotCount", label: "Lots", align: "text-right" },
   { key: "units", label: "Units", align: "text-right" },
   { key: "averageNAV", label: "Avg cost", align: "text-right" },
-  { key: "currentNAV", label: "NAV", align: "text-right" },
+  { key: "currentNAV", label: "Current NAV", align: "text-right" },
   { key: "invested", label: "Invested", align: "text-right" },
   { key: "currentValue", label: "Value", align: "text-right" },
   { key: "absoluteGain", label: "Gain", align: "text-right" },
@@ -33,7 +33,7 @@ const HOLDING_ACCESSORS = {
 const LOT_COLUMNS = [
   { key: "date", label: "Purchase date", align: "text-left" },
   { key: "amount", label: "Amount", align: "text-right" },
-  { key: "purchaseNAV", label: "NAV", align: "text-right" },
+  { key: "purchaseNAV", label: "Purchase NAV", align: "text-right" },
   { key: "units", label: "Units", align: "text-right" },
   { key: "currentValue", label: "Value", align: "text-right" },
   { key: "absoluteGain", label: "Gain", align: "text-right" },
