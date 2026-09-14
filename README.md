@@ -16,7 +16,7 @@ One process serves both the UI and the API.
 
 ```bash
 npm run build && npm start   # production
-npm test                     # 135 tests
+npm test                     # 166 tests
 npm run lint
 ```
 
@@ -38,6 +38,7 @@ lib/
   grouping.js           folio + scheme grouping, XIRR per holding
   pii.js                personal data scrubbing
   csvSession.js         upload to sheet handoff
+  columnOrder.js        drag-to-reorder, persisted per table
   sorting.js  motion.js  miniMarkdown.js  rateLimit.js
 middleware.js           HTTP Basic Auth over the whole app
 ```
